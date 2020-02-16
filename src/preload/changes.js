@@ -34,19 +34,17 @@ function handleFaviconChange() {
 		const { url, defaultUrl } = settings.get('Assets_favicon') || {};
 		const faviconUrl = (url || defaultUrl) && Meteor.absoluteUrl(url || defaultUrl);
 
-		if (faviconUrl) {
-			const canvas = document.createElement('canvas');
-			canvas.width = 100;
-			canvas.height = 100;
-			const ctx = canvas.getContext('2d');
+		if (!faviconUrl) {
+			ipcRenderer.sendToHost('favicon-changed', null);
+			return;
+		}
 
-			const image = new Image();
-			image.src = faviconUrl;
-			image.onload = () => {
-				ctx.drawImage(image, 0, 0, 100, 100);
-				ipcRenderer.sendToHost('favicon-changed', canvas.toDataURL());
-			};
-		} else {
+		try {
+			const response = await fetch(faviconUrl);
+			const content = await response.text();
+			ipcRenderer.sendToHost('favicon-changed', `data:image/svg+xml;base64,${ btoa(content) }`);
+		} catch (error) {
+			console.error(error);
 			ipcRenderer.sendToHost('favicon-changed', null);
 		}
 	});
