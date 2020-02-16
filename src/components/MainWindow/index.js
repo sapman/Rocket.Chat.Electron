@@ -1,8 +1,10 @@
+import path from 'path';
+import url from 'url';
+
 import { remote } from 'electron';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 
-import { getAppIconPath, getTrayIconPath } from '../../icons';
 import { useSaga } from '../SagaMiddlewareProvider';
 import { mainWindowStateSaga } from './sagas';
 import { MAIN_WINDOW_WEBCONTENTS_FOCUSED, MAIN_WINDOW_EDIT_FLAGS_CHANGED } from '../../actions';
@@ -74,14 +76,55 @@ export function MainWindow({
 		return mentionCount || (badges.some((badge) => !!badge) && '•') || null;
 	});
 
+	const iconURL = useSelector(({
+		servers,
+		currentServerUrl,
+	}) => {
+		const currentServer = servers.find(({ url }) => url === currentServerUrl);
+		return (currentServer && currentServer.favicon)
+			|| String(url.pathToFileURL(path.join(remote.app.getAppPath(), 'app/public/images/icon.svg')));
+	});
+
+	const iconPromiseRef = useRef(Promise.resolve());
+
 	useEffect(() => {
 		if (process.platform !== 'linux' && process.platform !== 'win32') {
 			return;
 		}
 
-		const image = badge === undefined ? getAppIconPath() : getTrayIconPath({ badge });
-		browserWindow.setIcon(image);
-	}, [badge, browserWindow]);
+		// const image = badge === undefined ? getAppIconPath() : getTrayIconPath({ badge });
+
+		iconPromiseRef.current = iconPromiseRef.current.then(() => new Promise((resolve) => {
+			const iconSVG = new Image();
+			iconSVG.src = iconURL;
+			iconSVG.onload = () => {
+				const icon = remote.nativeImage.createEmpty();
+
+				const canvas = document.createElement('canvas');
+				for (const size of [16, 20, 24, 32]) {
+					canvas.width = size;
+					canvas.height = size;
+					const ctx = canvas.getContext('2d');
+
+					ctx.drawImage(iconSVG, 0, 0, size, size);
+
+					icon.addRepresentation({
+						width: size,
+						height: size,
+						dataURL: canvas.toDataURL('image/png'),
+						scaleFactor: size / 32,
+					});
+				}
+				canvas.remove();
+
+				browserWindow.setIcon(icon);
+				resolve();
+			};
+			iconSVG.onerror = () => {
+				resolve();
+			};
+		}));
+	}, [badge, browserWindow, iconURL]);
 
 	useEffect(() => {
 		if (process.platform !== 'win32') {
