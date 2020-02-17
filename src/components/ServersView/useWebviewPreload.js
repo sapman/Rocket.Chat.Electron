@@ -40,6 +40,11 @@ export const useWebviewPreload = (webviewRef, webContents, { url, hasSidebar, ac
 					break;
 
 				case 'title-changed':
+					if (args[0] === 'Rocket.Chat' && url !== 'https://open.rocket.chat') {
+						dispatch({ type: WEBVIEW_TITLE_CHANGED, payload: { webContentsId: webContents.id, url, title: `${ args[0] } - ${ url }` } });
+						break;
+					}
+
 					dispatch({ type: WEBVIEW_TITLE_CHANGED, payload: { webContentsId: webContents.id, url, title: args[0] } });
 					break;
 

@@ -6,6 +6,7 @@ import { useSaga } from '../SagaMiddlewareProvider';
 import { mainWindowStateSaga } from './sagas';
 import { MAIN_WINDOW_WEBCONTENTS_FOCUSED, MAIN_WINDOW_EDIT_FLAGS_CHANGED } from '../../actions';
 import { useMainWindowIcon } from './useMainWindowIcon';
+import { useMainWindowTitle } from './useMainWindowTitle';
 
 export function MainWindow({
 	browserWindow = remote.getCurrentWindow(),
@@ -75,6 +76,7 @@ export function MainWindow({
 	});
 
 	useMainWindowIcon(browserWindow);
+	useMainWindowTitle(browserWindow);
 
 	useEffect(() => {
 		if (process.platform !== 'win32') {
