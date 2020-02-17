@@ -5,11 +5,11 @@ import { remote } from 'electron';
 import { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 
-const createNativeImage = (iconURL, badge, iconCache) => new Promise((resolve) => {
-	const cacheKey = `${ iconURL }-${ badge }`;
+const createIconForLinux = (iconURL, badge, nativeImageCache) => new Promise((resolve) => {
+	const cacheKey = badge ? `${ iconURL }-${ badge }` : iconURL;
 
-	if (iconCache.has(cacheKey)) {
-		resolve(iconCache.get(cacheKey));
+	if (nativeImageCache.has(cacheKey)) {
+		resolve(nativeImageCache.get(cacheKey));
 		return;
 	}
 
@@ -45,11 +45,10 @@ const createNativeImage = (iconURL, badge, iconCache) => new Promise((resolve) =
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
 				ctx.font = `normal normal 900 normal ${ size / 4 }px / ${ size / 4 }px system-ui`;
-				ctx.fillText(String(badge), size - size / 4, size - size / 4);
+				ctx.fillText(badge, size - size / 4, size - size / 4);
 			}
 
-			const scaleFactor = (process.platform === 'win32' && size / 32)
-				|| remote.screen.getPrimaryDisplay().scaleFactor;
+			const { scaleFactor } = remote.screen.getPrimaryDisplay();
 
 			icon.addRepresentation({
 				width: size,
@@ -60,13 +59,99 @@ const createNativeImage = (iconURL, badge, iconCache) => new Promise((resolve) =
 		}
 		canvas.remove();
 
-		iconCache.set(cacheKey, icon);
+		nativeImageCache.set(cacheKey, icon);
 
 		resolve(icon);
 	};
 	iconSVG.onerror = () => {
 		resolve(null);
 	};
+});
+
+const createIconForWindows = (iconURL, nativeImageCache) => new Promise((resolve) => {
+	const cacheKey = iconURL;
+
+	if (nativeImageCache.has(cacheKey)) {
+		resolve(nativeImageCache.get(cacheKey));
+		return;
+	}
+
+	const iconSVG = new Image();
+	iconSVG.src = iconURL;
+	iconSVG.onload = () => {
+		const icon = remote.nativeImage.createEmpty();
+
+		const canvas = document.createElement('canvas');
+		for (const size of [64, 48, 40, 32, 24, 20, 16]) {
+			canvas.width = size;
+			canvas.height = size;
+			const ctx = canvas.getContext('2d');
+
+			ctx.drawImage(iconSVG, 0, 0, size, size);
+
+			const scaleFactor = size / 32;
+
+			icon.addRepresentation({
+				width: size,
+				height: size,
+				dataURL: canvas.toDataURL('image/png'),
+				scaleFactor,
+			});
+		}
+		canvas.remove();
+
+		nativeImageCache.set(cacheKey, icon);
+
+		resolve(icon);
+	};
+	iconSVG.onerror = () => {
+		resolve(null);
+	};
+});
+
+const createOverlayIconForWindows = (badge, nativeImageCache) => new Promise((resolve) => {
+	const cacheKey = badge;
+
+	if (nativeImageCache.has(cacheKey)) {
+		resolve(nativeImageCache.get(cacheKey));
+		return;
+	}
+
+	const icon = remote.nativeImage.createEmpty();
+
+	const canvas = document.createElement('canvas');
+	const size = 16;
+	canvas.width = size;
+	canvas.height = size;
+	const ctx = canvas.getContext('2d');
+
+	if (badge) {
+		ctx.fillStyle = '#F5455C';
+
+		ctx.beginPath();
+		ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+		ctx.closePath();
+		ctx.fill();
+
+		ctx.fillStyle = '#ffffff';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.font = `normal normal 900 normal ${ size / 2 }px / ${ size / 2 }px system-ui`;
+		ctx.fillText(badge, size / 2, size / 2);
+	}
+
+	icon.addRepresentation({
+		width: size,
+		height: size,
+		dataURL: canvas.toDataURL('image/png'),
+		scaleFactor: 1,
+	});
+
+	canvas.remove();
+
+	nativeImageCache.set(cacheKey, icon);
+
+	resolve(icon);
 });
 
 export const useMainWindowIcon = (browserWindow) => {
@@ -86,20 +171,49 @@ export const useMainWindowIcon = (browserWindow) => {
 		const mentionCount = badges
 			.filter((badge) => Number.isInteger(badge))
 			.reduce((sum, count) => sum + count, 0);
-		return mentionCount || (badges.some((badge) => !!badge) && '•') || null;
+
+		if (mentionCount > 9) {
+			return '+9';
+		}
+
+		if (mentionCount) {
+			return mentionCount.toString(10);
+		}
+
+		if (badges.some((badge) => !!badge)) {
+			return '•';
+		}
+
+		return null;
 	});
 
-	const iconCacheRef = useRef(new Map());
+	const nativeImageCacheRef = useRef(new Map());
 
 	const promiseChainRef = useRef(Promise.resolve());
 
 	useEffect(() => {
-		if (process.platform !== 'win32' && process.platform !== 'linux') {
+		if (process.platform !== 'linux') {
 			return;
 		}
 
 		promiseChainRef.current = promiseChainRef.current
-			.then(() => createNativeImage(iconURL, badge, iconCacheRef.current))
+			.then(() => createIconForLinux(iconURL, badge, nativeImageCacheRef.current))
 			.then((icon) => browserWindow.setIcon(icon));
+	}, [browserWindow, iconURL, badge]);
+
+	useEffect(() => {
+		if (process.platform !== 'win32') {
+			return;
+		}
+
+		promiseChainRef.current = promiseChainRef.current
+			.then(() => Promise.all([
+				createIconForWindows(iconURL, nativeImageCacheRef.current),
+				createOverlayIconForWindows(badge, nativeImageCacheRef.current),
+			]))
+			.then(([icon, overlay]) => {
+				browserWindow.setIcon(icon);
+				browserWindow.setOverlayIcon(overlay, badge ? String(badge) : '');
+			});
 	}, [browserWindow, iconURL, badge]);
 };
