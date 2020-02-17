@@ -5,17 +5,26 @@ import { remote } from 'electron';
 import { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 
-const createIconForLinux = (iconURL, badge, nativeImageCache) => new Promise((resolve) => {
+const createImage = (src) => new Promise((resolve, reject) => {
+	const image = new Image();
+	image.src = src;
+	image.onload = () => {
+		resolve(image);
+	};
+	image.onerror = () => {
+		reject();
+	};
+});
+
+const createIconForLinux = async (iconURL, badge, nativeImageCache) => {
 	const cacheKey = badge ? `${ iconURL }-${ badge }` : iconURL;
 
 	if (nativeImageCache.has(cacheKey)) {
-		resolve(nativeImageCache.get(cacheKey));
-		return;
+		return nativeImageCache.get(cacheKey);
 	}
 
-	const iconSVG = new Image();
-	iconSVG.src = iconURL;
-	iconSVG.onload = () => {
+	try {
+		const iconSVG = await createImage(iconURL);
 		const icon = remote.nativeImage.createEmpty();
 
 		const canvas = document.createElement('canvas');
@@ -61,28 +70,25 @@ const createIconForLinux = (iconURL, badge, nativeImageCache) => new Promise((re
 
 		nativeImageCache.set(cacheKey, icon);
 
-		resolve(icon);
-	};
-	iconSVG.onerror = () => {
-		resolve(null);
-	};
-});
+		return icon;
+	} catch (_) {
+		return null;
+	}
+};
 
-const createIconForWindows = (iconURL, nativeImageCache) => new Promise((resolve) => {
+const createIconForWindows = async (iconURL, nativeImageCache) => {
 	const cacheKey = iconURL;
 
 	if (nativeImageCache.has(cacheKey)) {
-		resolve(nativeImageCache.get(cacheKey));
-		return;
+		return nativeImageCache.get(cacheKey);
 	}
 
-	const iconSVG = new Image();
-	iconSVG.src = iconURL;
-	iconSVG.onload = () => {
+	try {
+		const iconSVG = await createImage(iconURL);
 		const icon = remote.nativeImage.createEmpty();
 
 		const canvas = document.createElement('canvas');
-		for (const size of [64, 48, 40, 32, 24, 20, 16]) {
+		for (const size of [256, 64, 48, 40, 32, 24, 20, 16]) {
 			canvas.width = size;
 			canvas.height = size;
 			const ctx = canvas.getContext('2d');
@@ -102,19 +108,17 @@ const createIconForWindows = (iconURL, nativeImageCache) => new Promise((resolve
 
 		nativeImageCache.set(cacheKey, icon);
 
-		resolve(icon);
-	};
-	iconSVG.onerror = () => {
-		resolve(null);
-	};
-});
+		return icon;
+	} catch (_) {
+		return null;
+	}
+};
 
-const createOverlayIconForWindows = (badge, nativeImageCache) => new Promise((resolve) => {
+const createOverlayIconForWindows = async (badge, nativeImageCache) => {
 	const cacheKey = badge;
 
 	if (nativeImageCache.has(cacheKey)) {
-		resolve(nativeImageCache.get(cacheKey));
-		return;
+		return nativeImageCache.get(cacheKey);
 	}
 
 	const icon = remote.nativeImage.createEmpty();
@@ -151,8 +155,8 @@ const createOverlayIconForWindows = (badge, nativeImageCache) => new Promise((re
 
 	nativeImageCache.set(cacheKey, icon);
 
-	resolve(icon);
-});
+	return icon;
+};
 
 export const useMainWindowIcon = (browserWindow) => {
 	const defaultAppIcon = useMemo(() =>
@@ -213,7 +217,7 @@ export const useMainWindowIcon = (browserWindow) => {
 			]))
 			.then(([icon, overlay]) => {
 				browserWindow.setIcon(icon);
-				browserWindow.setOverlayIcon(overlay, badge ? String(badge) : '');
+				browserWindow.setOverlayIcon(overlay, badge || '');
 			});
 	}, [browserWindow, iconURL, badge]);
 };
