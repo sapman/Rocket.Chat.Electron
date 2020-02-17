@@ -63,11 +63,7 @@ export function MainWindow({
 		};
 	}, [dispatch]);
 
-	const badge = useSelector(({ isTrayIconEnabled, servers }) => {
-		if (isTrayIconEnabled) {
-			return undefined;
-		}
-
+	const badge = useSelector(({ servers }) => {
 		const badges = servers.map(({ badge }) => badge);
 		const mentionCount = badges
 			.filter((badge) => Number.isInteger(badge))

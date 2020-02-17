@@ -5,9 +5,11 @@ import { remote } from 'electron';
 import { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 
-const createNativeImage = (iconURL, iconCache) => new Promise((resolve) => {
-	if (iconCache.has(iconURL)) {
-		resolve(iconCache.get(iconURL));
+const createNativeImage = (iconURL, badge, iconCache) => new Promise((resolve) => {
+	const cacheKey = `${ iconURL }-${ badge }`;
+
+	if (iconCache.has(cacheKey)) {
+		resolve(iconCache.get(cacheKey));
 		return;
 	}
 
@@ -17,12 +19,34 @@ const createNativeImage = (iconURL, iconCache) => new Promise((resolve) => {
 		const icon = remote.nativeImage.createEmpty();
 
 		const canvas = document.createElement('canvas');
-		for (const size of [64, 48, 40, 32, 24, 20, 16, 256]) {
+		for (const size of [64, 48, 40, 32, 24, 20, 16]) {
 			canvas.width = size;
 			canvas.height = size;
 			const ctx = canvas.getContext('2d');
 
 			ctx.drawImage(iconSVG, 0, 0, size, size);
+
+			if (badge) {
+				ctx.beginPath();
+				ctx.arc(size - size / 4, size - size / 4, size / 4, 0, 2 * Math.PI);
+				ctx.rect(size - size / 4, size - size / 4, size / 4, size / 4);
+				ctx.closePath();
+				ctx.clip();
+				ctx.clearRect(0, 0, size, size);
+
+				ctx.fillStyle = '#F5455C';
+
+				ctx.beginPath();
+				ctx.arc(size - size / 4, size - size / 4, size / 6, 0, 2 * Math.PI);
+				ctx.closePath();
+				ctx.fill();
+
+				ctx.fillStyle = '#ffffff';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.font = `normal normal 900 normal ${ size / 4 }px / ${ size / 4 }px system-ui`;
+				ctx.fillText(String(badge), size - size / 4, size - size / 4);
+			}
 
 			const scaleFactor = (process.platform === 'win32' && size / 32)
 				|| remote.screen.getPrimaryDisplay().scaleFactor;
@@ -35,6 +59,8 @@ const createNativeImage = (iconURL, iconCache) => new Promise((resolve) => {
 			});
 		}
 		canvas.remove();
+
+		iconCache.set(cacheKey, icon);
 
 		resolve(icon);
 	};
@@ -55,17 +81,25 @@ export const useMainWindowIcon = (browserWindow) => {
 		return (currentServer && currentServer.favicon) || defaultAppIcon;
 	});
 
+	const badge = useSelector(({ servers }) => {
+		const badges = servers.map(({ badge }) => badge);
+		const mentionCount = badges
+			.filter((badge) => Number.isInteger(badge))
+			.reduce((sum, count) => sum + count, 0);
+		return mentionCount || (badges.some((badge) => !!badge) && '•') || null;
+	});
+
 	const iconCacheRef = useRef(new Map());
 
 	const promiseChainRef = useRef(Promise.resolve());
 
 	useEffect(() => {
-		if (process.platform !== 'linux' && process.platform !== 'win32') {
+		if (process.platform !== 'win32' && process.platform !== 'linux') {
 			return;
 		}
 
 		promiseChainRef.current = promiseChainRef.current
-			.then(() => createNativeImage(iconURL, iconCacheRef.current))
+			.then(() => createNativeImage(iconURL, badge, iconCacheRef.current))
 			.then((icon) => browserWindow.setIcon(icon));
-	}, [browserWindow, iconURL]);
+	}, [browserWindow, iconURL, badge]);
 };
