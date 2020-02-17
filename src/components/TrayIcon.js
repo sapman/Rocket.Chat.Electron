@@ -87,6 +87,7 @@ export function TrayIcon() {
 
 		return () => {
 			innerRef.current.destroy();
+			innerRef.current = null;
 		};
 	}, [isTrayIconEnabled]);
 
@@ -123,12 +124,16 @@ export function TrayIcon() {
 	}, [menu]);
 
 	useSaga(function *(appName, t) {
+		if (process.platform !== 'win32') {
+			return;
+		}
+
 		let prevIsMainWindowVisible = yield select(({ mainWindowState: { visible } }) => visible);
 		yield takeEvery(MAIN_WINDOW_STATE_CHANGED, function *() {
 			const isMainWindowVisible = yield select(({ mainWindowState: { visible } }) => visible);
 
 			if (prevIsMainWindowVisible && !isMainWindowVisible) {
-				innerRef.current.displayBalloon({
+				innerRef.current && innerRef.current.displayBalloon({
 					icon: getAppIconPath(),
 					title: t('tray.balloon.stillRunning.title', { appName }),
 					content: t('tray.balloon.stillRunning.content', { appName }),
