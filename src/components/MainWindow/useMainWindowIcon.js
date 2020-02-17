@@ -224,23 +224,25 @@ export const useMainWindowIcon = (browserWindow) => {
 			.then((icon) => browserWindow.setIcon(icon));
 	}, [browserWindow, iconURL, badge]);
 
+	const isMainWindowVisible = useSelector(({ mainWindowState: { visible } }) => visible);
+
 	useEffect(() => {
-		if (process.platform !== 'win32') {
+		if (process.platform !== 'win32' || !isMainWindowVisible) {
 			return;
 		}
 
 		setIconPromiseChainRef.current = setIconPromiseChainRef.current
 			.then(() => createIconForWindows(iconURL, nativeImageCacheRef.current))
 			.then((icon) => browserWindow.setIcon(icon));
-	}, [browserWindow, iconURL]);
+	}, [browserWindow, iconURL, isMainWindowVisible]);
 
 	useEffect(() => {
-		if (process.platform !== 'win32') {
+		if (process.platform !== 'win32' || !isMainWindowVisible) {
 			return;
 		}
 
 		setOverlayIconPromiseChainRef.current = setOverlayIconPromiseChainRef.current
 			.then(() => createOverlayIconForWindows(badge, nativeImageCacheRef.current))
 			.then((overlayIcon) => browserWindow.setOverlayIcon(overlayIcon, badge || ''));
-	}, [browserWindow, badge]);
+	}, [browserWindow, badge, isMainWindowVisible]);
 };
