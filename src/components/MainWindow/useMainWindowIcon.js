@@ -211,14 +211,15 @@ export const useMainWindowIcon = (browserWindow) => {
 
 	const nativeImageCacheRef = useRef(new Map());
 
-	const promiseChainRef = useRef(Promise.resolve());
+	const setIconPromiseChainRef = useRef(Promise.resolve());
+	const setOverlayIconPromiseChainRef = useRef(Promise.resolve());
 
 	useEffect(() => {
 		if (process.platform !== 'linux') {
 			return;
 		}
 
-		promiseChainRef.current = promiseChainRef.current
+		setIconPromiseChainRef.current = setIconPromiseChainRef.current
 			.then(() => createIconForLinux(iconURL, badge, nativeImageCacheRef.current))
 			.then((icon) => browserWindow.setIcon(icon));
 	}, [browserWindow, iconURL, badge]);
@@ -228,14 +229,18 @@ export const useMainWindowIcon = (browserWindow) => {
 			return;
 		}
 
-		promiseChainRef.current = promiseChainRef.current
-			.then(() => Promise.all([
-				createIconForWindows(iconURL, nativeImageCacheRef.current),
-				createOverlayIconForWindows(badge, nativeImageCacheRef.current),
-			]))
-			.then(([icon, overlay]) => {
-				browserWindow.setIcon(icon);
-				browserWindow.setOverlayIcon(overlay, badge || '');
-			});
-	}, [browserWindow, iconURL, badge]);
+		setIconPromiseChainRef.current = setIconPromiseChainRef.current
+			.then(() => createIconForWindows(iconURL, nativeImageCacheRef.current))
+			.then((icon) => browserWindow.setIcon(icon));
+	}, [browserWindow, iconURL]);
+
+	useEffect(() => {
+		if (process.platform !== 'win32') {
+			return;
+		}
+
+		setOverlayIconPromiseChainRef.current = setOverlayIconPromiseChainRef.current
+			.then(() => createOverlayIconForWindows(badge, nativeImageCacheRef.current))
+			.then((overlayIcon) => browserWindow.setOverlayIcon(overlayIcon, badge || ''));
+	}, [browserWindow, badge]);
 };
