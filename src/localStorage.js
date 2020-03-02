@@ -22,6 +22,11 @@ const defaultValueCast = (defaultValue) => (value) => {
 	return typeof value === 'object' ? value : defaultValue;
 };
 
+
+export const clear = () => {
+	localStorage.clear();
+}
+
 export const readFromStorage = (key, defaultValue, cast = defaultValueCast(defaultValue)) => {
 	console.assert(typeof defaultValue !== 'undefined');
 

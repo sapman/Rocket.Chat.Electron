@@ -35,7 +35,8 @@ export function *validateServerUrl(serverUrl, timeout = 5000) {
 
 const loadAppServers = async (serversMap) => {
 	const appConfiguration = await readConfigurationFile('servers.json', { appData: true });
-
+	console.log('loadAppServers')
+	console.log(appConfiguration);
 	if (!appConfiguration) {
 		return;
 	}
@@ -129,6 +130,11 @@ function *loadCurrentServerUrl(servers) {
 		currentServerUrl = null;
 	}
 
+	if (servers.length == 1) {
+		currentServerUrl = servers[0].url
+	}
+	console.log('loadCurrentServerUrl')
+	console.log(currentServerUrl)
 	return currentServerUrl;
 }
 

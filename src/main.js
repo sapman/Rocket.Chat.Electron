@@ -74,9 +74,8 @@ const createMainWindow = () => {
 			nodeIntegration: true,
 		},
 	});
-
+	mainWindow.setMenu(null);
 	mainWindow.addListener('close', preventEvent);
-
 	mainWindow.webContents.addListener('will-attach-webview', (event, webPreferences) => {
 		delete webPreferences.enableBlinkFeatures;
 	});
